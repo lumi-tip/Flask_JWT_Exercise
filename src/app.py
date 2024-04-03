@@ -92,10 +92,10 @@ def get_all_planets():
         db.session.commit()
         return jsonify({'msg': 'planet added successfully'})
     else:
-        people = People.query.all()
-        return jsonify([char.serialize() for char in people])
+        planets = Planet.query.all()
+        return jsonify([planet.serialize() for planet in planets])
 
-@app.route('/planet/<int:planet_id>')
+@app.route('/planets/<int:planet_id>')
 def get_one_planet(planet_id):
     planet = Planet.query.filter_by(id = planet_id).one_or_none()
     if planet is None:
@@ -117,31 +117,33 @@ def login():
     if user is None:
         return {"msg": "Wrong username or password"}
     
-    access_token = create_access_token(identity = user.serialize())
-    return jsonify({"token":access_token, "identity": user.serialize()})
+    access_token = create_access_token(identity = user.id)
+    return jsonify({"token":access_token, "identity": user.id})
 
 @app.route('/users/favorites')
 @jwt_required()
 def user_favorites():
-    user = get_jwt_identity()
-    favorites = user.get("favorites")
-    if favorites is None:
+    user_id = get_jwt_identity()
+    user = User.query.filter_by(id = user_id).one_or_none()
+    favorites = user.favorites
+    if len([favorite.serialize() for favorite in favorites]) <= 0:
         return jsonify({'msg': 'no favorites yet'})
-    return jsonify(favorites)
+    return jsonify([favorite.serialize() for favorite in favorites])
 
 @app.route('/favorite/planet/<int:planet_id>', methods=['POST','DELETE'])
 @jwt_required()
 def add_or_delete_fav_planet(planet_id):
-    user = get_jwt_identity()
+    user_id = get_jwt_identity()
     if request.method == 'POST':
-        new_favorite = Favorite(user_id = user['id'], planet_id = planet_id)
-        if new_favorite.planet_id is None:
+        planet_exist = Planet.query.filter_by(id = planet_id).one_or_none()
+        if planet_exist is None:
             return jsonify({'msg': 'wrong planet id'})
+        new_favorite = Favorite(user_id = user_id, planet_id = planet_id)
         db.session.add(new_favorite)
         db.session.commit()
         return jsonify({'msg': 'Favorite added'})
     else:
-        del_favorite = Favorite.query.filter_by(user_id = user['id'], planet_id = planet_id).one_or_none()
+        del_favorite = Favorite.query.filter_by(user_id = user_id, planet_id = planet_id).first()
         if del_favorite is None:
             return jsonify({'msg': 'wrong planet id'})
         db.session.delete(del_favorite)
@@ -151,16 +153,19 @@ def add_or_delete_fav_planet(planet_id):
 @app.route('/favorite/people/<int:people_id>', methods=['POST','DELETE'])
 @jwt_required()
 def add_or_delete_fav_char(people_id):
-    user = get_jwt_identity()
+    user_id = get_jwt_identity()
     if request.method == 'POST':
-        new_favorite = Favorite(user_id = user['id'], people_id = people_id)
+        char_exist = People.query.filter_by(id = people_id).one_or_none()
+        if char_exist is None:
+            return jsonify({'msg': 'wrong planet id'})
+        new_favorite = Favorite(user_id = user_id, people_id = people_id)
         if new_favorite.people_id is None:
             return jsonify({'msg': 'wrong char id'})
         db.session.add(new_favorite)
         db.session.commit()
         return jsonify({'msg': 'Favorite added'})
     else:
-        del_favorite = Favorite.query.filter_by(user_id = user['id'], people_id = people_id).one_or_none()
+        del_favorite = Favorite.query.filter_by(user_id = user_id, people_id = people_id).first()
         if del_favorite is None:
             return jsonify({'msg': 'wrong character id'})
         db.session.delete(del_favorite)
